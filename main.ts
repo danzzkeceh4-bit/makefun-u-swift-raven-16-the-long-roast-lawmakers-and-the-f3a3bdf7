@@ -4,6 +4,10 @@ import { join } from "node:path";
 const OUTPUT_DIR = process.env.MAKEFUN_OUTPUT_DIR ?? "/output";
 // Output contract: /output/entry.txt holds exactly one sentence, the roast,
 // 159 code points, no trailing newline — the sealed scorer reads it verbatim.
+// Contract details: the sentence is one line, ends with a single period, and
+// its byte size on disk must equal its UTF-8 encoding of the same constant —
+// the read-back guard below enforces this, so any future edit to LINE must
+// keep the code-point count in sync with the scorer's expected length.
 const LINE =
   "The committee that voted to regulate artificial intelligence spent this morning asking an intern why their Word document will not just become a PDF on its own.";
 
@@ -20,6 +24,13 @@ if ((LINE.match(/\./g) ?? []).length !== 1 || !LINE.endsWith(".")) {
 }
 if (LINE.trim().length === 0 || LINE.includes("\n")) {
   throw new Error("entry must be a single non-blank line");
+}
+
+// Byte-length guard: the scorer reads raw bytes; refuse an entry whose
+// UTF-8 byte length falls outside the sane band for one sentence.
+const byteLength = Buffer.byteLength(LINE, "utf8");
+if (byteLength < 1 || byteLength > 1280) {
+  throw new Error(`entry must be 1-1280 bytes, got ${byteLength}`);
 }
 
 mkdirSync(OUTPUT_DIR, { recursive: true });
